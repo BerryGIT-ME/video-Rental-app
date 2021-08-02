@@ -4,24 +4,25 @@ import MovieTable from "./movieTable";
 import Pagination from "./common/pagination";
 import ListGroup from "./common/ListGroup";
 import { genres } from "./../services/fakeGenreService";
+import Input from "./common/input";
+import { Link } from "react-router-dom";
+import * as stringHelper from "./../utils/stringHelper";
+import SearchBox from "./common/searchBox";
 
 class MovieList extends Component {
-  //getMovieToShow = (movies, page = 1) => {};
   constructor() {
     super();
-    let moviePerPage = 2;
-    let movieList = list.getMovies();
-    let moviesToShow = list.getMovieToShow(movieList, moviePerPage);
 
-    movieList = movieList.map((movie) => {
+    this.state.moviePerPage = 4;
+    this.state.movies = list.getMovies();
+    this.state.sortedMovies = this.state.movies.map((movie) => {
       movie.like = false;
       return movie;
     });
-
-    this.state.moviePerPage = moviePerPage;
-    this.state.movies = movieList;
-    this.state.sortedMovies = movieList;
-    this.state.moviesToShow = moviesToShow;
+    this.state.moviesToShow = list.getMovieToShow(
+      this.state.movies,
+      this.state.moviePerPage
+    );
   }
 
   state = {
@@ -31,6 +32,27 @@ class MovieList extends Component {
     showPage: 1,
     showGenre: "All Genres",
     sortMode: "ascending",
+    search: "",
+  };
+
+  showListGroup = (str, movies) => {
+    let moviesToShow;
+    let newMovies;
+
+    if (str === "All Genres") {
+      moviesToShow = list.getMovieToShow(movies, this.state.moviePerPage);
+      this.setState({ moviesToShow, showGenre: str, sortedMovies: movies });
+    } else {
+      newMovies = movies.filter((movie) => movie.genre.name === str);
+      moviesToShow = list.getMovieToShow(newMovies, this.state.moviePerPage);
+      this.setState({ moviesToShow, showGenre: str, sortedMovies: newMovies });
+    }
+
+    return {
+      moviesToShow: moviesToShow,
+      showGenre: str,
+      sortedMovies: str === "All Genres" ? movies : newMovies,
+    };
   };
 
   /**
@@ -47,6 +69,7 @@ class MovieList extends Component {
       this.state.moviePerPage,
       this.state.showPage
     );
+
     if (this.showGenre === "All Genres") {
       this.setState({
         movies: newMovies,
@@ -64,9 +87,8 @@ class MovieList extends Component {
         moviesToShow: moviesToShow,
       });
     }
+    list.deleteMovie(id);
   };
-
-  //___________________________
 
   handleLike = (id) => {
     let newMovieList = this.state.movies.map((movie) => {
@@ -93,26 +115,6 @@ class MovieList extends Component {
     this.setState({ moviesToShow, showGenre, sortedMovies, showPage: 1 });
   };
 
-  showListGroup = (str, movies) => {
-    let moviesToShow;
-    let newMovies;
-
-    if (str === "All Genres") {
-      moviesToShow = list.getMovieToShow(movies, this.state.moviePerPage);
-      this.setState({ moviesToShow, showGenre: str, sortedMovies: movies });
-    } else {
-      newMovies = movies.filter((movie) => movie.genre.name === str);
-      moviesToShow = list.getMovieToShow(newMovies, this.state.moviePerPage);
-      this.setState({ moviesToShow, showGenre: str, sortedMovies: newMovies });
-    }
-
-    return {
-      moviesToShow: moviesToShow,
-      showGenre: str,
-      sortedMovies: str === "All Genres" ? movies : newMovies,
-    };
-  };
-
   handleSort = (str) => {
     let _sortedmovies = [...this.state.sortedMovies];
     let sorted;
@@ -122,26 +124,14 @@ class MovieList extends Component {
         sorted = _sortedmovies.sort((a, b) => {
           let x = a[str].toLowerCase();
           let y = b[str].toLowerCase();
-          if (x < y) {
-            return -1;
-          }
-          if (x > y) {
-            return 1;
-          }
-          return 0;
+          return stringHelper.sortString(x, y);
         });
       }
       if (str === "genre") {
         sorted = _sortedmovies.sort((a, b) => {
           let x = a[str].name.toLowerCase();
           let y = b[str].name.toLowerCase();
-          if (x < y) {
-            return -1;
-          }
-          if (x > y) {
-            return 1;
-          }
-          return 0;
+          return stringHelper.sortString(x, y);
         });
       }
     } else {
@@ -161,10 +151,29 @@ class MovieList extends Component {
    *  render section
    */
 
+  renderInput(name, placeholder, onChange, value, type = "text") {
+    return (
+      <Input
+        name={name}
+        placeholder={placeholder}
+        onChange={onChange}
+        value={value}
+        type={type}
+      />
+    );
+  }
+
+  handleSearch = (query) => {
+    const searchResult = this.state.movies.filter((movie) =>
+      movie.title.toLowerCase().startsWith(query.toLowerCase())
+    );
+    this.showListGroup("All Genres", searchResult);
+    this.setState({ search: query });
+  };
   render() {
     const { movies, sortedMovies, moviesToShow, moviePerPage } = this.state;
     return (
-      <Fragment>
+      <>
         <div className="row addpadding">
           <div className="col-md-3">
             <ListGroup
@@ -173,14 +182,24 @@ class MovieList extends Component {
               handleListGroup={this.handleListGroup}
             />
           </div>
-          <div className="col">
+          <div className="col m-2">
+            <Link className="btn btn-primary" to="/movies/new">
+              New Movie
+            </Link>
             {movies.length > 0 && (
-              <p>
+              <p className="moviListParagraph">
                 Showing <span>{sortedMovies.length}</span> movies in the
                 database
               </p>
             )}
-            {movies.length > 0 ? (
+            <SearchBox
+              name="search"
+              placeholder="Search..."
+              onChange={this.handleSearch}
+              value={this.state.search}
+            />
+            {}
+            {sortedMovies.length > 0 ? (
               <MovieTable
                 moviesToShow={moviesToShow}
                 onLike={this.handleLike}
@@ -201,7 +220,7 @@ class MovieList extends Component {
             )}
           </div>
         </div>
-      </Fragment>
+      </>
     );
   }
 }

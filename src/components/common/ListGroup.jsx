@@ -4,19 +4,23 @@ function ListGroup({ Genre, showGenre, handleListGroup }) {
   return (
     <ul className="list-group">
       <li
-        className={`list-group-item ${showGenre}`}
+        className={`list-group-item ${
+          showGenre === "All Genres" ? "active" : ""
+        }`}
         onClick={() => handleListGroup("All Genres")}
       >
         All Genres
       </li>
-      {Genre.map((genreType) => {
+      {Genre.map((genre) => {
         return (
           <li
-            key={genreType._id}
-            className="list-group-item"
-            onClick={() => handleListGroup(genreType.name)}
+            key={genre._id}
+            className={`list-group-item ${
+              showGenre === genre.name ? "active" : ""
+            }`}
+            onClick={() => handleListGroup(genre.name)}
           >
-            {genreType.name}
+            {genre.name}
           </li>
         );
       })}

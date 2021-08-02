@@ -5,7 +5,11 @@ export const genres = [
 ];
 
 export function getGenres() {
-  return genres.filter((g) => g);
+  return genres.filter((g) => g.name);
+}
+
+export function getGenreName(id) {
+  console.log(genres[0].name);
 }
 
 const Genre = {
