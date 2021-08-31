@@ -1,8 +1,10 @@
 import React from "react";
 import Like from "./common/like";
 import { Link } from "react-router-dom";
+import auth from "../services/authService";
 
 function MovieTable({ moviesToShow, onLike, onDelete, onSort }) {
+  const user = auth.decode();
   return (
     <table className="table">
       <thead>
@@ -19,8 +21,8 @@ function MovieTable({ moviesToShow, onLike, onDelete, onSort }) {
           <th onClick={() => onSort("dailyRentalRate")} scope="col">
             Rate
           </th>
-          <th onClick={() => onSort()} scope="col"></th>
-          <th onClick={() => onSort()} scope="col"></th>
+          <th scope="col"></th>
+          {user && <th scope="col"></th>}
         </tr>
       </thead>
       <tbody>
@@ -29,7 +31,11 @@ function MovieTable({ moviesToShow, onLike, onDelete, onSort }) {
           return (
             <tr key={movie._id}>
               <td>
-                <Link to={`/movies/${movie._id}`}>{title}</Link>
+                {user && user.isAdmin ? (
+                  <Link to={`/movies/${movie._id}`}>{title}</Link>
+                ) : (
+                  <p>{title}</p>
+                )}
               </td>
               <td>{genre.name}</td>
               <td>{numberInStock}</td>
@@ -37,15 +43,17 @@ function MovieTable({ moviesToShow, onLike, onDelete, onSort }) {
               <td onClick={() => onLike(movie._id)}>
                 <Like like={like} />
               </td>
-              <td>
-                <button
-                  onClick={() => onDelete(movie._id)}
-                  type="button"
-                  className="btn btn-danger btn-sm"
-                >
-                  Delete
-                </button>
-              </td>
+              {user && user.isAdmin && (
+                <td>
+                  <button
+                    onClick={() => onDelete(movie._id)}
+                    type="button"
+                    className="btn btn-danger btn-sm"
+                  >
+                    Delete
+                  </button>
+                </td>
+              )}
             </tr>
           );
         })}

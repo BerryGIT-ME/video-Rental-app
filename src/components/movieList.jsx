@@ -1,155 +1,113 @@
 import { Component, Fragment } from "react";
-import * as list from "../services/fakeMovieService";
 import MovieTable from "./movieTable";
 import Pagination from "./common/pagination";
 import ListGroup from "./common/ListGroup";
-import { genres } from "./../services/fakeGenreService";
+import * as movieService from "../services/movieService";
+import { genres } from "./../services/genreService";
 import Input from "./common/input";
 import { Link } from "react-router-dom";
 import * as stringHelper from "./../utils/stringHelper";
 import SearchBox from "./common/searchBox";
+import logger from "../services/logService";
+import { toast } from "react-toastify";
+import auth from "../services/authService";
 
 class MovieList extends Component {
-  constructor() {
-    super();
-
-    this.state.moviePerPage = 4;
-    this.state.movies = list.getMovies();
-    this.state.sortedMovies = this.state.movies.map((movie) => {
-      movie.like = false;
-      return movie;
-    });
-    this.state.moviesToShow = list.getMovieToShow(
-      this.state.movies,
-      this.state.moviePerPage
-    );
-  }
-
   state = {
     movies: [],
-    sortedMovies: [],
-    moviesToShow: [],
-    showPage: 1,
+    genreList: [],
+    moviePerPage: 4,
+    pageNo: 1,
     showGenre: "All Genres",
     sortMode: "ascending",
     search: "",
   };
 
-  showListGroup = (str, movies) => {
-    let moviesToShow;
-    let newMovies;
+  async componentDidMount() {
+    const genreList = await genres;
+    const movies = await movieService.getMovies();
+    movies.map((movie) => {
+      movie.like = false;
+      return movie;
+    });
+    this.setState({ movies, genreList });
+  }
 
-    if (str === "All Genres") {
-      moviesToShow = list.getMovieToShow(movies, this.state.moviePerPage);
-      this.setState({ moviesToShow, showGenre: str, sortedMovies: movies });
-    } else {
-      newMovies = movies.filter((movie) => movie.genre.name === str);
-      moviesToShow = list.getMovieToShow(newMovies, this.state.moviePerPage);
-      this.setState({ moviesToShow, showGenre: str, sortedMovies: newMovies });
-    }
-
-    return {
-      moviesToShow: moviesToShow,
-      showGenre: str,
-      sortedMovies: str === "All Genres" ? movies : newMovies,
-    };
-  };
-
-  /**
-   *
-   *
-   * event handlers section
-   */
-
-  handleDelete = (id) => {
+  handleDelete = async (id) => {
     const _movies = [...this.state.movies];
     let newMovies = _movies.filter((movie) => movie._id !== id);
-    const _moviesToShow = list.getMovieToShow(
-      newMovies,
-      this.state.moviePerPage,
-      this.state.showPage
-    );
 
-    if (this.showGenre === "All Genres") {
-      this.setState({
-        movies: newMovies,
-        sortedMovies: newMovies,
-        _moviesToShow,
-      });
-    } else {
-      const { moviesToShow, sortedMovies } = this.showListGroup(
-        this.state.showGenre,
-        newMovies
-      );
-      this.setState({
-        movies: newMovies,
-        sortedMovies: sortedMovies,
-        moviesToShow: moviesToShow,
-      });
+    this.setState({ movies: newMovies });
+
+    try {
+      await movieService.deleteMovie(id);
+    } catch (error) {
+      logger.log(error);
+      if (error.response && error.response.status === 404)
+        toast.error("This movie has already been deleted");
+      this.setState({ movies: _movies });
     }
-    list.deleteMovie(id);
   };
 
   handleLike = (id) => {
-    let newMovieList = this.state.movies.map((movie) => {
-      if (movie._id === id) {
-        movie.like = !movie.like;
-      }
-      return movie;
-    });
-    this.setState({ movies: newMovieList, sortedMovies: newMovieList });
+    const movies = [...this.state.movies];
+    const index = movies.findIndex((movie) => movie._id === id);
+    movies[index].like = !movies[index].like;
+    this.setState({ movies });
   };
 
-  handleSelectPage = (pageNo) => {
-    const { sortedMovies, moviePerPage } = this.state;
-    let moviesToShow = list.getMovieToShow(sortedMovies, moviePerPage, pageNo);
-    this.setState({ moviesToShow, showPage: pageNo });
+  handlePageSelect = (pageNo) => {
+    this.setState({ pageNo });
   };
 
-  handleListGroup = (str) => {
-    const { movies } = this.state;
-    const { moviesToShow, showGenre, sortedMovies } = this.showListGroup(
-      str,
-      movies
+  handleListGroup = (showGenre) => {
+    this.setState({ showGenre });
+  };
+
+  handleSort = (sortParameter) => {
+    let _movies = [...this.state.movies];
+    const { movies, sortMode } = stringHelper.sort(
+      sortParameter,
+      _movies,
+      this.state.sortMode
     );
-    this.setState({ moviesToShow, showGenre, sortedMovies, showPage: 1 });
+    this.setState({ movies, sortMode });
   };
 
-  handleSort = (str) => {
-    let _sortedmovies = [...this.state.sortedMovies];
-    let sorted;
-    let sortMode;
-    if (str === "title" || str === "genre") {
-      if (str === "title") {
-        sorted = _sortedmovies.sort((a, b) => {
-          let x = a[str].toLowerCase();
-          let y = b[str].toLowerCase();
-          return stringHelper.sortString(x, y);
-        });
-      }
-      if (str === "genre") {
-        sorted = _sortedmovies.sort((a, b) => {
-          let x = a[str].name.toLowerCase();
-          let y = b[str].name.toLowerCase();
-          return stringHelper.sortString(x, y);
-        });
-      }
+  handleSearch = (query) => {
+    this.setState({ search: query, showGenre: "All Genres" });
+  };
+
+  getTableData = () => {
+    const { movies, moviePerPage, pageNo, search, showGenre: str } = this.state;
+    let sortedMovies = [...movies];
+    let moviesToShow;
+    let newMovies;
+
+    if (search) {
+      sortedMovies = sortedMovies.filter((movie) =>
+        movie.title.toLowerCase().startsWith(search.toLowerCase())
+      );
+    }
+
+    if (str === "All Genres") {
+      moviesToShow = movieService.getMovieToShow(
+        sortedMovies,
+        moviePerPage,
+        pageNo
+      );
     } else {
-      sorted = _sortedmovies.sort((a, b) => a[str] - b[str]);
+      newMovies = sortedMovies.filter((movie) => movie.genre.name === str);
+      moviesToShow = movieService.getMovieToShow(
+        newMovies,
+        moviePerPage,
+        pageNo
+      );
+      return { sortedMovies: newMovies, moviesToShow };
     }
-    sortMode = "descending";
-    if (this.state.sortMode === "descending") {
-      sorted = sorted.reverse();
-      sortMode = "ascending";
-    }
-    let moviesToShow = list.getMovieToShow(sorted, this.state.moviePerPage);
-    this.setState({ sortedMovies: sorted, moviesToShow, sortMode });
-  };
 
-  /**
-   *
-   *  render section
-   */
+    return { sortedMovies, moviesToShow };
+  };
 
   renderInput(name, placeholder, onChange, value, type = "text") {
     return (
@@ -163,29 +121,27 @@ class MovieList extends Component {
     );
   }
 
-  handleSearch = (query) => {
-    const searchResult = this.state.movies.filter((movie) =>
-      movie.title.toLowerCase().startsWith(query.toLowerCase())
-    );
-    this.showListGroup("All Genres", searchResult);
-    this.setState({ search: query });
-  };
   render() {
-    const { movies, sortedMovies, moviesToShow, moviePerPage } = this.state;
+    const { movies, moviePerPage } = this.state;
+    const user = auth.decode();
+    const { sortedMovies, moviesToShow } = this.getTableData();
+
     return (
       <>
         <div className="row addpadding">
           <div className="col-md-3">
             <ListGroup
-              Genre={genres}
+              Genre={this.state.genreList}
               showGenre={this.state.showGenre}
               handleListGroup={this.handleListGroup}
             />
           </div>
           <div className="col m-2">
-            <Link className="btn btn-primary" to="/movies/new">
-              New Movie
-            </Link>
+            {user && (
+              <Link className="btn btn-primary" to="/movies/new">
+                New Movie
+              </Link>
+            )}
             {movies.length > 0 && (
               <p className="moviListParagraph">
                 Showing <span>{sortedMovies.length}</span> movies in the
@@ -214,8 +170,8 @@ class MovieList extends Component {
                 maxPage={Math.ceil(sortedMovies.length / moviePerPage)}
                 list={sortedMovies}
                 moviePerPage={moviePerPage}
-                onSelectPage={this.handleSelectPage}
-                currentPage={this.state.showPage}
+                onSelectPage={this.handlePageSelect}
+                currentPage={this.state.pageNo}
               />
             )}
           </div>

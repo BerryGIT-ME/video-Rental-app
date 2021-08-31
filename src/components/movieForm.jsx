@@ -1,85 +1,100 @@
 import Joi from "joi-browser";
 import React from "react";
 import Form from "./common/form";
-import { genres } from "./../services/fakeGenreService";
-import { getMovie, getMovies, saveMovie } from "./../services/fakeMovieService";
+import { genres } from "./../services/genreService";
+import { getMovies, saveMovie } from "./../services/movieService";
+import { toast } from "react-toastify";
 //import queryString from "query-string";
 
 class MovieForm extends Form {
   state = {
-    data: { title: "", genre: "", numberInStock: "", rate: "" },
+    genresList: [],
+    data: {
+      title: "",
+      genre: "",
+      numberInStock: "",
+      dailyRentalRate: "",
+    },
     errors: {},
-    setup: false,
-    validUrl: true,
     defaultValue: "",
   };
 
-  constructor(props) {
-    super();
-    const {
-      match: { params },
-    } = props;
+  async componentDidMount() {
+    const { history, match } = this.props;
+    const pageRoute = match.params.id;
 
-    // check if url is valid
-    const movieId = params.id;
-    if (movieId === "new") return;
-    const movieList = getMovies();
-    const existInDb = movieList.some(
-      (movie) => movie._id.toString() === movieId.toString()
-    );
-    this.state.validUrl = existInDb;
-  }
+    let genresList = await this.getGenre();
 
-  componentDidMount() {
-    const {
-      state: { validUrl, setup },
-      props: { history, match },
-    } = this;
-
-    if (!validUrl) {
-      history.push("/not-found");
+    if (pageRoute === "new") {
+      this.loadEmptyForm(genresList);
       return;
     }
 
-    const movieId = match.params.id;
-    if (movieId !== "new" && setup === false) {
-      //update state
-      const movie = getMovie(movieId);
-      let newData = {};
-      newData.title = movie.title;
-      newData.genre = movie.genre._id;
-      newData.numberInStock = movie.numberInStock;
-      newData.rate = movie.dailyRentalRate;
-      this.setState({
-        data: newData,
-        setup: true,
-        defaultValue: movie.genre.name,
-      });
+    const movieList = await getMovies();
+
+    const existInDb = this.validatePageRoute(movieList, pageRoute);
+
+    if (!existInDb) {
+      history.replace("/not-found");
+      return;
     }
+
+    if (pageRoute !== "new") {
+      this.renderForm(movieList, pageRoute, genresList);
+    }
+  }
+
+  async getGenre() {
+    return await genres;
+  }
+
+  loadEmptyForm(genresList) {
+    const emptyGenre = { _id: "", name: "" };
+    genresList = [emptyGenre, ...genresList];
+    this.setState({ genresList });
+  }
+
+  validatePageRoute(movieList, pageRoute) {
+    return movieList.some(
+      (movie) => movie._id.toString() === pageRoute.toString()
+    );
+  }
+
+  renderForm(movieList, pageRoute, genresList) {
+    const movie = movieList.filter((m) => m._id === pageRoute)[0];
+    let newList = [movie.genre];
+    genresList.forEach((g) => {
+      if (g._id === movie.genre._id) return;
+      newList = [...newList, g];
+    });
+    let newData = { ...movie };
+    delete newData._id;
+    newData.genre = newData.genre._id;
+    this.setState({
+      data: newData,
+      defaultValue: movie.genre.name,
+      genresList: newList,
+    });
   }
 
   schema = {
     title: Joi.string().required(),
     genre: Joi.string().required(),
     numberInStock: Joi.number().min(0).max(100).required(),
-    rate: Joi.number().min(0).max(10).required(),
+    dailyRentalRate: Joi.number().min(0).max(10).required(),
   };
 
-  handleSelect = (e) => {
-    console.log(e.currentTarget.name);
-  };
-
-  doSubmit() {
+  async doSubmit() {
     const { id } = this.props.match.params;
     const {
-      data: { title, genre, numberInStock, rate },
+      data: { title, genre, numberInStock, dailyRentalRate },
     } = this.state;
 
     let newMovie = {
       title,
       genreId: genre,
       numberInStock: parseInt(numberInStock),
-      dailyRentalRate: parseFloat(rate),
+      dailyRentalRate: parseFloat(dailyRentalRate),
       publishDate: Date.now(),
     };
     if (id !== "new") {
@@ -87,20 +102,26 @@ class MovieForm extends Form {
       newMovie._id = id;
     }
 
-    saveMovie(newMovie);
+    try {
+      await saveMovie(newMovie);
+    } catch (error) {
+      toast.error("Apologies, something went wrong");
+      return;
+    }
     this.props.history.push("/movies");
-    return;
   }
 
   render() {
+    const { genresList } = this.state;
+
     return (
       <>
         <h1>Movie Form:</h1>
         <form onSubmit={this.handleSubmit}>
           {this.renderInput("title", "Title")}
-          {this.renderSelect("genre", "Genre", genres)}
+          {this.renderSelect("genre", "Genre", genresList)}
           {this.renderInput("numberInStock", "Number in Stock")}
-          {this.renderInput("rate", "Rate")}
+          {this.renderInput("dailyRentalRate", "Rate")}
           {this.renderButton("Save")}
         </form>
       </>

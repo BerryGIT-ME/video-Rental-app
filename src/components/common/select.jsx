@@ -10,7 +10,6 @@ function Select({ name, label, options, handleChange, error }) {
         className="form-control"
         onChange={handleChange}
       >
-        <option value="" />
         {options.map((genre) => (
           <option key={genre._id} value={genre._id}>
             {genre.name}
